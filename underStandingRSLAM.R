@@ -369,8 +369,10 @@ k_iters <- vector(mode = "numeric", length = length(8))
 k_jurnum <- vector(mode = "numeric", length = length(8))
 k_area <- 0
 
-k <- 1
+# revising jurisdictions to get only those that are included
+jurs <- unique(sort(included$JURNUM))
 
+k <- 1
 
 for (k in jurs) {
   k_area <- k_area + 1
@@ -435,6 +437,8 @@ for (k in jurs) {
       work[[uname]] <- ifelse(work[[dname]] > 0, work[[gname]]/work[[dname]], 
                               work[[uname]])                    # if RET_EMP_DEN > 0, growth/density to get area  
       work$VAC_LEFT <- t_left                                   #  updating vacant left column,   
+      
+      # An error message for controls, when allocated is much much more than the control total
       if (GROW_pri[i] - sum(t_alloc) < -1) {
         mess <- paste0("negative, LU= ", i, ",  jur= ", 
                        k, ",  iter= ", ik, " GROW_pri=", 
@@ -442,47 +446,46 @@ for (k in jurs) {
                        "\n")
         cat(mess, "\n")
       }
-      GROW_pri[i] <- GROW_pri[i] - sum(t_alloc)
+      
+      GROW_pri[i] <- GROW_pri[i] - sum(t_alloc)                   # revise the control total
     }
     
-    if (sum(GROW_pri, na.rm = T) <= 1) 
-      nc <- 0
+    if (sum(GROW_pri, na.rm = T) <= 1)                            # close the while loop when 
+      nc <- 0                                                     # control total is less than or equal to 1
     if (ik > 20) 
-      nc <- 0
-    k_iters[k_area] <- ik
+      nc <- 0                                                    # If iterations are more than 20
+    k_iters[k_area] <- ik                                        # cancel while  loo[]
   }
   
   
   
   
   
-  GHH <- sum(work$HH_g)
-  pvarsX <- c("POP_HH", "POP_GQ", "AUTO")
+  GHH <- sum(work$HH_g)                                      # sum of all households growth
+  pvarsX <- c("POP_HH", "POP_GQ", "AUTO")                    # Population and Auto variables
   for (i in 1:length(pvarsX)) {
-    j <- match(pvarsX[i], pvars)
-    luT <- den[j, "GROW"]
-    gvar <- paste0(pvarsX[i], "_g")
-    work[, gvar] <- luT * work$HH_g/GHH
-  }
-  k12j <- match("K12_ENROLL", pvars)
+    j <- match(pvarsX[i], pvars)                             # get index of POP_HH (4),POP_GQ
+    luT <- den[j, "GROW"]                                    # den[4,"GROW"]
+    gvar <- paste0(pvarsX[i], "_g")                          # allocating population and auto growth
+    work[, gvar] <- luT * work$HH_g/GHH                      # growth control total using household 
+  }                                                          # growth proportions
+  k12j <- match("K12_ENROLL", pvars)                         # get index of K12_enroll (8)
   k12b <- den[k12j, "basetot"]
   k12f <- den[k12j, "CNTL_TOT"]
   if (k12b != 0) {
-    k12fac <- k12f/k12b
+    k12fac <- k12f/k12b                                      # getting growth factor from future/base
+  } else {
+    k12fac <- 1                                              # if base year zero, then factor 1
   }
-  else {
-    k12fac <- 1
-  }
-  uj <- match("U_ENROLL", pvars)
+  uj <- match("U_ENROLL", pvars)                             # same way increasing university enrollment
   ub <- den[uj, "basetot"]
-  uf <- den[uj, "CNTL_TOT"]
+  uf <- den[uj, "CNTL_TOT"]                                  #base year total and future year total ratio
   if (ub != 0) {
     ufac <- uf/ub
-  }
-  else {
+  }else {
     ufac <- 1
   }
-  zdat <- join(base.df, work, by = "TAZ")
+  zdat <- join(base.df, work, by = "TAZ")                    # zdata file is base.df (2017) with work.df
   naics <- c("NAICS_11", "NAICS_21", "NAICS_22", 
              "NAICS_23", "NAICS_3133", "NAICS_42", 
              "NAICS_4445", "NAICS_4849", "NAICS_51", 
@@ -491,25 +494,23 @@ for (k in jurs) {
              "NAICS_62", "NAICS_71", "NAICS_72", 
              "NAICS_81", "NAICS_92", "NAICS_OTH")
   for (i in 1:length(nonV)) {
-    fld <- paste0(nonV[i], "_f")
-    fldg <- paste0(nonV[i], "_g")
-    zdat[, fld] <- ifelse(zdat$NON_EMP > 0, zdat[, nonV[i]] * 
-                            (zdat$NON_EMP_g + zdat$NON_EMP)/zdat$NON_EMP, 
-                          (zdat$NON_EMP_g + zdat$NON_EMP) * NonFrac[i, 
-                                                                    3])
-    zdat[, fldg] <- zdat[, fld] - zdat[, nonV[i]]
+    fld <- paste0(nonV[i], "_f") # NAICS_11_f
+    fldg <- paste0(nonV[i], "_g") # NAICS_11_g
+    zdat[, fld] <- ifelse(zdat$NON_EMP > 0, zdat[, nonV[i]] *                # base year non-retail > 0
+                            (zdat$NON_EMP_g + zdat$NON_EMP)/zdat$NON_EMP,  # non-retail factor increase 
+                          (zdat$NON_EMP_g + zdat$NON_EMP) * NonFrac[i,3])   # using NAICS in non-retail
+    zdat[, fldg] <- zdat[, fld] - zdat[, nonV[i]]    # future minus base    # or use regiional fraction
   }
-  for (i in 1:length(retV)) {
+  for (i in 1:length(retV)) {                
     fld <- paste0(retV[i], "_f")
-    fldg <- paste0(retV[i], "_g")
-    zdat[, fld] <- ifelse(zdat$RET_EMP > 0, zdat[, retV[i]] * 
+    fldg <- paste0(retV[i], "_g")                                         # same thing for retail 
+    zdat[, fld] <- ifelse(zdat$RET_EMP > 0, zdat[, retV[i]] *             # NAICS
                             (zdat$RET_EMP_g + zdat$RET_EMP)/zdat$RET_EMP, 
-                          (zdat$RET_EMP_g + zdat$RET_EMP) * RetFrac[i, 
-                                                                    3])
+                          (zdat$RET_EMP_g + zdat$RET_EMP) * RetFrac[i, 3])
     zdat[, fldg] <- zdat[, fld] - zdat[, retV[i]]
   }
   gdat <- zdat
-  zdat$TOT_POP_f <- zdat$TOT_POP + zdat$POP_HH_g + zdat$POP_GQ_g
+  zdat$TOT_POP_f <- zdat$TOT_POP + zdat$POP_HH_g + zdat$POP_GQ_g     # getting all the future totals
   zdat$POP_HH_f <- zdat$POP_HH + zdat$POP_HH_g
   zdat$POP_GQ_f <- zdat$POP_GQ + zdat$POP_GQ_g
   zdat$HH_f <- zdat$HH + zdat$HH_g
@@ -521,14 +522,13 @@ for (k in jurs) {
   zdat$TOT_EMP_f <- zdat$TOT_EMP + zdat$RET_EMP_g + zdat$NON_EMP_g
   zdat$RET_EMP_f <- zdat$RET_EMP + zdat$RET_EMP_g
   zdat$NON_EMP_f <- zdat$NON_EMP + zdat$NON_EMP_g
-  zdat <- zdat %>% mutate_if(is.numeric, round)
+  zdat <- zdat %>% mutate_if(is.numeric, round)            # rounding them to zero
   zdat$ACRES <- base.df$ACRES
-  zdat$AVGAUTO <- ifelse(zdat$HH_f > 0, zdat$AUTO_f/zdat$HH_f, 
-                         0)
+  zdat$AVGAUTO <- ifelse(zdat$HH_f > 0, zdat$AUTO_f/zdat$HH_f, 0) # updating AVG AUTO column
   of1 <- c("N", "ZONE", "PDC", "JUR", 
            "JURNUM", "JURCODE", "TOT_POP_f", 
            "POP_HH_f", "POP_GQ_f", "HH_f", 
-           "K12_ENROLL_f", "U_ENROLL_f", "AUTO_f", 
+           "K12_ENROLL_f", "U_ENROLL_f", "AUTO_f",            # two set of column names one for future
            "TOT_EMP_f", "RET_EMP_f", "NON_EMP_f", 
            "NAICS_11_f", "NAICS_21_f", "NAICS_22_f", 
            "NAICS_23_f", "NAICS_3133_f", "NAICS_42_f", 
@@ -544,7 +544,7 @@ for (k in jurs) {
            "U_ENROLL", "AUTO", "TOT_EMP", 
            "RET_EMP", "NON_EMP", "NAICS_11", 
            "NAICS_21", "NAICS_22", "NAICS_23", 
-           "NAICS_3133", "NAICS_42", "NAICS_4445", 
+           "NAICS_3133", "NAICS_42", "NAICS_4445",           # twand other generic
            "NAICS_4849", "NAICS_51", "NAICS_52", 
            "NAICS_53", "NAICS_54", "NAICS_55", 
            "NAICS_56", "NAICS_61", "NAICS_62", 
@@ -566,6 +566,10 @@ for (k in jurs) {
   oden <- rbind(oden, den)
   gc()
 }
+
+
+
+
 lusum <- function(myzdat) {
   ctab <- myzdat %>% group_by(JUR) %>% summarize(JURNUM = max(JURNUM), 
                                                  N_Zones = n(), TOT_POP = sum(TOT_POP), POP_HH = sum(POP_HH), 

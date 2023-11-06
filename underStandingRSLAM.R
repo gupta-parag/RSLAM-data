@@ -1,9 +1,24 @@
+
+
+
+
+read_excel_allsheets <- function(filename, tibble = FALSE) {
+  sheets <- readxl::excel_sheets(filename)
+  x <- lapply(sheets, function(X) readxl::read_excel(filename, sheet = X))
+  if(!tibble) x <- lapply(x, as.data.frame)
+  names(x) <- sheets
+  x
+}
+
+runslam <- function (basedir, alt) 
+{
+
 message("****** Hello from runslam ********************")
 
 # Assigning base directory and alternative name
 # and getting all the input and output directories
-basedir <- 'C:\\R_SLAM_2\\BaseLU'
-alt <- 'alternative_urban'
+# basedir <- 'C:\\R_SLAM_2\\BaseLU'
+# alt <- 'alternative_urban'
 
 message("***** ", basedir, "  ***\n")
 message("***** ", alt, "  ***\n")
@@ -372,8 +387,6 @@ k_area <- 0
 # revising jurisdictions to get only those that are included
 jurs <- unique(sort(included$JURNUM))
 
-k <- 1
-
 for (k in jurs) {
   k_area <- k_area + 1
   den <- xden[xden$JURNUM == k, ] # left over control total of richmond ; K == 1
@@ -544,30 +557,28 @@ for (k in jurs) {
            "U_ENROLL", "AUTO", "TOT_EMP", 
            "RET_EMP", "NON_EMP", "NAICS_11", 
            "NAICS_21", "NAICS_22", "NAICS_23", 
-           "NAICS_3133", "NAICS_42", "NAICS_4445",           # twand other generic
+           "NAICS_3133", "NAICS_42", "NAICS_4445",           # and other generic column names
            "NAICS_4849", "NAICS_51", "NAICS_52", 
            "NAICS_53", "NAICS_54", "NAICS_55", 
            "NAICS_56", "NAICS_61", "NAICS_62", 
            "NAICS_71", "NAICS_72", "NAICS_81", 
            "NAICS_92", "NAICS_OTH", "AVGAUTO", 
            "ACRES", "JUR_b", "JURNUM_b")
-  zdat$AVGAUTO <- round(zdat$AVGAUTO, 2)
-  zdat <- zdat[, of1]
-  colnames(zdat) <- of2
-  gdat$USED <- gdat$VAC_ACRE - gdat$VAC_LEFT
-  gdat <- gdat[, c("TAZ", "JURNUM", "HH_g", 
+  zdat$AVGAUTO <- round(zdat$AVGAUTO, 2)                    # rounding average to two places
+  zdat <- zdat[, of1]                                       # subsetting of1 column names
+  colnames(zdat) <- of2                                     # renaming of2 column names
+  gdat$USED <- gdat$VAC_ACRE - gdat$VAC_LEFT                 # gdat is growth data
+  gdat <- gdat[, c("TAZ", "JURNUM", "HH_g",                 # this encapsulates growth summary
                    "HH_acres", "RET_EMP_g", "RET_EMP_acres", 
                    "NON_EMP_g", "NON_EMP_acres", "USED", 
                    "VAC_LEFT", "VAC_ACRE")]
-  gdat <- round(gdat, 2)
+  gdat <- round(gdat, 2)                         # rounding to 2 digits after decimal places
   owork <- rbind(owork, work)
   ozdat <- rbind(ozdat, zdat)
   ogdat <- rbind(ogdat, gdat)
-  oden <- rbind(oden, den)
+  oden <- rbind(oden, den)                       # getting all jurisdictions files by TAZs
   gc()
 }
-
-
 
 
 lusum <- function(myzdat) {
@@ -580,27 +591,30 @@ lusum <- function(myzdat) {
   ctab <- as.data.frame(ctab)
   return(ctab)
 }
-gsum <- ogdat %>% group_by(JURNUM) %>% summarize(N_Zones = n(), 
-                                                 HH_g = sum(HH_g), HH_acres = sum(HH_acres), RET_EMP_g = sum(RET_EMP_g), 
-                                                 RET_EMP_acres = sum(RET_EMP_acres), NON_EMP_g = sum(NON_EMP_g), 
-                                                 NON_EMP_acres = sum(NON_EMP_acres), USED = sum(USED), 
-                                                 VAC_LEFT = sum(VAC_LEFT), VAC_ACRE = sum(VAC_ACRE))
+
+ # growth summary by jurisdiction
+gsum <- ogdat %>% 
+  group_by(JURNUM) %>% 
+  summarize(N_Zones = n(), 
+           HH_g = sum(HH_g), HH_acres = sum(HH_acres), RET_EMP_g = sum(RET_EMP_g), 
+           RET_EMP_acres = sum(RET_EMP_acres), NON_EMP_g = sum(NON_EMP_g), 
+           NON_EMP_acres = sum(NON_EMP_acres), USED = sum(USED), 
+           VAC_LEFT = sum(VAC_LEFT), VAC_ACRE = sum(VAC_ACRE))
 gsum <- cbind(gsum, k_iters)
 gsum <- replace(gsum, is.na(gsum), 0)
 gsum <- as.data.frame(gsum)
+
 county_tab <- lusum(ozdat)
+
 base_tab <- lusum(xbase.df[xbase.df$JURNUM %in% jurs, ])
-gnames <- county_tab[order(county_tab$JURNUM), c("JUR", 
-                                                 "JURNUM")]
+
+gnames <- county_tab[order(county_tab$JURNUM), c("JUR", "JURNUM")]
 gsum$JUR <- gnames$JUR
 gsum <- gsum[order(gsum$JUR), ]
-gsum$ReqDen <- round((gsum$HH_g + gsum$RET_EMP_g + gsum$NON_EMP_g)/gsum$VAC_ACRE, 
-                     2)
+gsum$ReqDen <- round((gsum$HH_g + gsum$RET_EMP_g + gsum$NON_EMP_g)/gsum$VAC_ACRE, 2)
 gsum$HH_Den <- round(gsum$HH_g/gsum$HH_acres, 2)
-gsum$Ret_Den <- round(gsum$RET_EMP_g/gsum$RET_EMP_acres, 
-                      2)
-gsum$Non_Den <- round(gsum$NON_EMP_g/gsum$NON_EMP_acres, 
-                      2)
+gsum$Ret_Den <- round(gsum$RET_EMP_g/gsum$RET_EMP_acres, 2)
+gsum$Non_Den <- round(gsum$NON_EMP_g/gsum$NON_EMP_acres, 2)
 owork <- owork[order(owork$MODEL_TAZ), ]
 ozdat <- ozdat[order(ozdat$N), ]
 ogdat <- ogdat[order(ogdat$TAZ), ]
@@ -647,22 +661,24 @@ write.xlsx2(owork, file = outf, sheetName = "Working Data",
 gc()
 write.xlsx2(xbase.df, file = outf, sheetName = "ZDATA_in", 
             append = TRUE, row.names = FALSE)
-oz2 <- ozdat
-nonTPO <- rtc.df[rtc.df$ZONE > 955, ]
-outzdatx <- rbind(oz2, nonTPO)
-outzdata <- rbind(outzdatx, tpo_pass_through)
-outzdata <- outzdata[order(outzdata$ZONE), ]
-message("** create Zonal data output ", luoutF)
+
+# Creating the output travel demand model file
+oz2 <- ozdat # geting data for TAZs that are open for allocation
+nonTPO <- rtc.df[rtc.df$ZONE > 955, ] # TAZs outside the MPO region
+outzdatx <- rbind(oz2, nonTPO) # combining the newly allocated with 2045 nonTPO 
+outzdata <- rbind(outzdatx, tpo_pass_through) # combining the above with excluded
+outzdata <- outzdata[order(outzdata$ZONE), ] # ordering them by zone
+
+message("** create Zonal data output ", luoutF) 
 last2 <- outzdata[, c("AVGAUTO", "ACRES")]
 outzdata <- select(outzdata, c(-AVGAUTO, -ACRES))
 outzdata[is.na(outzdata)] = 0
-is.num <- sapply(outzdata, is.numeric)
-outzdata[is.num] <- lapply(outzdata[is.num], as.integer, 
-                           0)
+is.num <- sapply(outzdata, is.numeric) # What is this ??
+outzdata[is.num] <- lapply(outzdata[is.num], as.integer,  0)
 outzdata <- cbind(outzdata, last2)
-write.dbf(file = luoutF, outzdata)
+write.dbf(file = luoutF, outzdata) # writing the travel demand model file
 
-
+############################################ LAND USE OUTPUT ####################################
 
 # taz_2050 <- read.dbf(paste0(outdir, p2, alt, ".dbf")) # read this from RSLAM output
 taz_by_lu <- read.csv(paste0(indir, "TAZ_By_LU.csv")) #default input so copy this from alternative A
@@ -674,12 +690,15 @@ message(" ** read the model output file")
 model_output <- model_output[model_output$ZONE %in% taz_by_lu$TAZ, ]
 
 file_name <- taz_by_lu
-file_name <- left_join(file_name, model_output[ , c("N","HH","TOT_EMP")], by = c( "TAZ" = "N"))
+file_name <- left_join(file_name, 
+                       model_output[ , c("N",'JUR', "HH","TOT_EMP", "TOT_POP")], 
+                       by = c( "TAZ" = "N"))
 
 #residential land uses
 file_name$res_total <- file_name$L_D_RE_Ar + file_name$M_D_RE_SF_Ar + 
   file_name$M_D_RE_MF_Ar + file_name$H_D_RE_Ar + file_name$MU_Ar
 file_name$res_total[file_name$res_total == 0] <- 1
+
 file_name$LDRE_prop <- file_name$L_D_RE_Ar / file_name$res_total
 file_name$MDRESF_prop <- file_name$M_D_RE_SF_Ar / file_name$res_total
 file_name$MDREMF_prop <- file_name$M_D_RE_MF_Ar / file_name$res_total
@@ -723,10 +742,9 @@ file_name$Other_EMP <- round(file_name$Other_prop * file_name$TOT_EMP,0)
 file_name$AG_EMP <- round(file_name$AG_prop * file_name$TOT_EMP,0)
 file_name$MU_EMP <- round(file_name$MUEMP_prop * file_name$TOT_EMP,0)
 
-write.csv(file_name, paste0(outdir, p2,"detailed_", alt, ".csv"), row.names = F)
+#write.csv(file_name, paste0(outdir, p2,"detailed_", alt, ".csv"), row.names = F)
 
-read.csv(paste0(indir, "TAZ_By_LU.csv"))
-detail_out <- read.csv(paste0(outdir, p2,"detailed_", alt, ".csv"))
+detail_out <- file_name
 ken_summ <- read_excel_allsheets(paste0(outdir, p2,alt, ".xlsx"))
 growth_allo <- ken_summ[["Growth Allocation"]]
 growth_allo_f <- growth_allo[ , c(1,4,6,8)]
@@ -755,13 +773,40 @@ filter_output$AG_Ar_new <- filter_output$AG_Ar + filter_output$AG_prop * filter_
 filter_output$MU_Ar_new <- filter_output$MU_Ar + filter_output$MUEMP_prop * filter_output$EMP_acres
 filter_output$T_EMP_AR_new <- filter_output$T_EMP_AR + filter_output$EMP_acres
 
+final_names <- c('COUN_NAME','MPO','TAZ','L_D_RE_Ar_new','M_D_RE_SF_Ar_new','M_D_RE_MF_Ar_new',
+                 'H_D_RE_Ar_new','MU_Ar_new','COM_Ar_new',	'INS_Ar_new',	'OF_Ar_new','IND_Ar_new',	
+                 'Other_Ar_new','AG_Ar_new','FO_Ar','PA_Ar','LDHH','MDSFHH','MDMFHH','HDHH','MUHH',
+                 'TSFHH','TMFHH','COM_EMP','INS_EMP','OF_EMP','IND_EMP','Other_EMP','AG_EMP','MU_EMP',
+                  'JUR','HH','TOT_EMP', 'res_total_new',	'Parcel_ACR_Ar',	'ACRES_Ar',	'T_EMP_AR_new',	
+                 'TOT_POP')
+#c('JUR','HH','TOT_EMP', 'res_total_Ar',	'Parcel_ACR_Ar',	'TAZ_ACRES_Ar',	'T_EMP_AR_Ar',	'TOT_POP')
 
-write.csv(filter_output, paste0(outdir, p2,"revisedAr_", alt, ".csv"), row.names = F)
+# getting the land-use file in the right format
+filter_output_f <- filter_output[,final_names]
+colnames(filter_output_f) <- gsub(x = colnames(filter_output_f), 
+                                  pattern="_new", replacement = "")
+colnames(filter_output_f)[34:37] <- c('res_total_Ar', "Parcel_ACR_Ar", "TAZ_ACRES_Ar", "T_EMP_AR_Ar")
+
+filter_output_f <- filter_output_f[filter_output_f$TAZ %in% included$MODEL_TAZ, ] # taking out excluded TAZs
+
+
+# getting the excluded TAZs
+excluded_output <- read.csv('C:\\R_SLAM_2\\BaseLU\\Alt_A\\input_2050_targets.csv')
+excluded_output_f <- excluded_output[excluded_output$TAZ %in% excluded$MODEL_TAZ, ]
+
+excluded_output_f <- excluded_output_f %>% 
+  mutate(across(17:30, round, 0))
+
+landUseComputed <-  rbind(filter_output_f, excluded_output_f)
+
+write.csv(landUseComputed, paste0(outdir, p2,"revisedAr_", alt, ".csv"), row.names = F)
+
+##############################################################################################
+
 
 setwd(savwd)
 return(owork)
-
-
+}
 
 
 

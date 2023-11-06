@@ -375,56 +375,66 @@ k <- 1
 for (k in jurs) {
   k_area <- k_area + 1
   den <- xden[xden$JURNUM == k, ] # left over control total of richmond ; K == 1
-  work <- xwork[xwork$JURNUM == k, ]
-  base.df <- xbase.df[xbase.df$JURNUM == k, ]
+  work <- xwork[xwork$JURNUM == k, ] # working ddataframe that contians all the scores
+  base.df <- xbase.df[xbase.df$JURNUM == k, ] # base year data for richmond ; k == 1
+  
   for (i in 1:nrow(den)) {
-    den$basetot[i] <- sum(base.df[[den$LU_NAME[i]]])
+    den$basetot[i] <- sum(base.df[[den$LU_NAME[i]]], na.rm = T)
   }
-  den$GROW <- den$CNTL_TOT - den$basetot
+  
+  den$GROW <- den$CNTL_TOT - den$basetot # this means left over control total - base control file 2017 to calculate growth
+                                           # calculating growth total for included TAZs
   pri <- den[order(den$PRIORITY), ]
   pri <- pri[pri$PRIORITY > 0, ]
-  GROW_pri <- as.vector(pri$GROW)
+  GROW_pri <- as.vector(pri$GROW) # control totals vector of a jurisdiction retail,non-retail and HH
   work$VAC_LEFT <- work$VAC_ACRE
   v0 <- vector(mode = "numeric", length = length(work$VAC_LEFT))
   nc <- 1
   ik <- 0
+  
+  # beginning of while loop
   while (nc) {
-    ik <- ik + 1
-    for (i in 1:nrow(pri)) {
-      dname <- paste0(pri$LU_NAME[i], "_DEN")
-      sname <- paste0(pri$LU_NAME[i], "_score")
-      snam2 <- paste0(pri$LU_NAME[i], "_score2")
-      gname <- paste0(pri$LU_NAME[i], "_g")
-      uname <- paste0(pri$LU_NAME[i], "_acres")
-      work[[dname]] <- as.numeric(work[[dname]])
-      if (ik == 1) {
-        work[[gname]] <- v0
-        work[[uname]] <- v0
+    ik <- ik + 1                                    # keeping track of number of iterations
+    for (i in 1:nrow(pri)) {                        # total three rows
+      dname <- paste0(pri$LU_NAME[i], "_DEN")       # RET_EMP_DEN, NON_EMP_DEN, HH_DEN
+      sname <- paste0(pri$LU_NAME[i], "_score")     # RET_EMP_score, NON_EMP_score, HH_score
+      snam2 <- paste0(pri$LU_NAME[i], "_score2")    # RET_EMP_score2, NON_EMP_score2, HH_score2,
+      gname <- paste0(pri$LU_NAME[i], "_g")         # RET_EMP_g, NON_EMP_g, HH_g,
+      uname <- paste0(pri$LU_NAME[i], "_acres")     # RET_EMP_acres, NON_EMP_acres, HH_acres,
+      work[[dname]] <- as.numeric(work[[dname]])    # converting density to numeric, RET_EMP_DEN, NON_EMP_DEN, HH_DEN
+      if (ik == 1) {                                # if it is first iteration
+        work[[gname]] <- v0                         # RET_EMP_g, NON_EMP_g, HH_g are all zero
+        work[[uname]] <- v0                         # # RET_EMP_acres, NON_EMP_acres, HH_acres acres is zero
       }
-      work[[sname]] <- ifelse(work[[dname]] > 0, work[[sname]], 
-                              0)
-      work[[snam2]] <- ifelse(work$VAC_LEFT > 0, work[[sname]], 
-                              0)
-      tot <- sum(work[[snam2]])
-      if (tot > 0) {
-        work[[snam2]] <- work[[snam2]]/tot
-      }
-      else {
-        work[[snam2]] <- v0
-      }
-      t_alloc <- work[[snam2]] * GROW_pri[i]
-      t_consumed <- ifelse(work[[dname]] > 0, t_alloc/work[[dname]], 
-                           0)
-      t_consumed <- ifelse(t_consumed > work$VAC_LEFT, 
-                           work$VAC_LEFT, t_consumed)
-      t_left <- work$VAC_LEFT - t_consumed
-      t_alloc <- ifelse(t_left > 0, t_alloc, work$VAC_LEFT * 
-                          work[[dname]])
-      t_left <- ifelse(t_left > 0, t_left, 0)
-      work[[gname]] <- t_alloc + work[[gname]]
+      
+      # RET_EMP_score, NON_EMP_score, HH_score
+      work[[sname]] <- ifelse(work[[dname]] > 0, work[[sname]], # if density > 0, score  else zero 
+                              0)                                # RET_EMP_DEN, NON_EMP_DEN, HH_DEN
+      # RET_EMP_score2, NON_EMP_score2, HH_score2,
+        work[[snam2]] <- ifelse(work$VAC_LEFT > 0, work[[sname]], # if vacant land > 0, score2 is score
+                              0)                                  # else zero 
+      tot <- sum(work[[snam2]])                                   # total score 2 of jurisdiction
+      if (tot > 0) {                                              # if total of score2 > 0
+        work[[snam2]] <- work[[snam2]]/tot                        # calculate score fraction of each TAZ
+      } else{                                                     # RET_EMP_score2, NON_EMP_score2, HH_score2,
+         work[[snam2]] <- v0 
+      }                                                           # if total is zero then score is zero,
+                                                              # RET_EMP_score2, NON_EMP_score2, HH_score2
+      t_alloc <- work[[snam2]] * GROW_pri[i]                    ### Score 2 fraction * control total, allocation
+      t_consumed <- ifelse(work[[dname]] > 0, t_alloc/work[[dname]], # jobs/density = area used
+                           0)                                     # Caluclating area consumed
+      t_consumed <- ifelse(t_consumed > work$VAC_LEFT,            # failsafe, if consumed more than available
+                           work$VAC_LEFT, t_consumed)             # then use available
+      t_left <- work$VAC_LEFT - t_consumed                        #  vacant land left
+      t_alloc <- ifelse(t_left > 0, t_alloc, work$VAC_LEFT *      # if more land left, then original allocation
+                          work[[dname]])                          # if not, then density * developable land
+      t_left <- ifelse(t_left > 0, t_left, 0)                     # if land left more than zero than t_left else 0
+      work[[gname]] <- t_alloc + work[[gname]]                    # allocation + itself RET_EMP_g, HH_G etc
+      
+      # uname is acres, so RET_EMP_acres, 
       work[[uname]] <- ifelse(work[[dname]] > 0, work[[gname]]/work[[dname]], 
-                              work[[uname]])
-      work$VAC_LEFT <- t_left
+                              work[[uname]])                    # if RET_EMP_DEN > 0, growth/density to get area  
+      work$VAC_LEFT <- t_left                                   #  updating vacant left column,   
       if (GROW_pri[i] - sum(t_alloc) < -1) {
         mess <- paste0("negative, LU= ", i, ",  jur= ", 
                        k, ",  iter= ", ik, " GROW_pri=", 
@@ -434,12 +444,18 @@ for (k in jurs) {
       }
       GROW_pri[i] <- GROW_pri[i] - sum(t_alloc)
     }
-    if (sum(GROW_pri) <= 1) 
+    
+    if (sum(GROW_pri, na.rm = T) <= 1) 
       nc <- 0
     if (ik > 20) 
       nc <- 0
     k_iters[k_area] <- ik
   }
+  
+  
+  
+  
+  
   GHH <- sum(work$HH_g)
   pvarsX <- c("POP_HH", "POP_GQ", "AUTO")
   for (i in 1:length(pvarsX)) {

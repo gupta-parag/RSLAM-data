@@ -1,7 +1,49 @@
 
+############################################## CALLING LIBRARIES #################################
+library(htmltools)
+library(shinyFiles)
+library(RColorBrewer)
+library(shinyBS)
+library(cartography)
+library(shinyLP)
+library(shinycssloaders)
+library(fs)
+library(readxl)
+library(purrr)
+library(sf)
+library(crosstalk)
+library(stringr)
+library(shiny)
+library(DT)
+library(stringr)
+library(shinyWidgets)
+library(shinythemes)
+library(leaflet)
+# library(runslam)
+library(tidyr)
+library(plyr)
+library(dplyr)
+#library(Matrix.utils)
+library(RColorBrewer)
+library(ggplot2)
+library(maptools)
+library(rgdal)
+library(RColorBrewer)
+library(httpuv)
+library(reshape2)
+library(kableExtra)
+library(scales)
+library(foreign)
+library(xlsx)
+library(data.table)
+library(rstudioapi)
+library(reactable)
+library(foreign)
+library(leaflet.extras)
 
+##################################################################################################
 
-
+# Function 1
 read_excel_allsheets <- function(filename, tibble = FALSE) {
   sheets <- readxl::excel_sheets(filename)
   x <- lapply(sheets, function(X) readxl::read_excel(filename, sheet = X))
@@ -10,6 +52,7 @@ read_excel_allsheets <- function(filename, tibble = FALSE) {
   x
 }
 
+# Function 2
 runslam <- function (basedir, alt) 
 {
 

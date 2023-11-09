@@ -180,7 +180,7 @@ changing_columns <- function(name_df, col_to_change, data_to_replace, row_number
 changing_input_file <- function(data_by_juris, file_choice, taz_group_input = ""){
   
   file_choice <- as.numeric(file_choice)
-  x <- unlist(strsplit(data_by_juris, split = ",")) # "JNAME", "HH","RET_JOBS", "NON_RET_JOBS"
+  x <- unlist(strsplit(data_by_juris, split = ",")) # "JNAME", "POP",  "HH","RET_JOBS", "NON_RET_JOBS"
   
   if(file_choice == 1) {
     
@@ -334,7 +334,6 @@ reading_taz_output <- function(base_dir_input, alt_name, type = "model"){
   }
   return(final_data)
 }
-
 write_exclude <- function(choice, base_dir_input, alt_name){
   
   message(choice)
@@ -661,19 +660,19 @@ server <- function(input, output, session) {
               row.names =  F)
   })
   
-  new_file <- eventReactive(input$csv, {
-    changing_input_file(string_to_display(), 
-                        file_choice = input$m_file, 
-                        taz_group_input = group_taz_input())})
+  # new_file <- changing_input_file(string_to_display(), 
+  #                                 file_choice = input$m_file, 
+  #                                 taz_group_input = group_taz_input())
   
-  # new_file <- eventReactive(input$changeName, {
-  #   reading_file( choice = input$m_file, 
-  #                        basedir, 
-  #                 folder_name())
-  #   })
-  
+  new_file <- eventReactive(input$changeName, {
+    reading_file( choice = input$m_file,
+                         basedir,
+                  folder_name())
+    })
+
   output$new_table <- renderReactable(
-    reactable(new_file(),  compact = T, filterable = T, 
+                  reactable(new_file(), 
+              compact = T, filterable = T, 
               defaultPageSize = 50, bordered = T, highlight = T,
               showPageSizeOptions = TRUE, height = 730,
               defaultColDef = colDef(align = "center")) )
@@ -706,7 +705,7 @@ server <- function(input, output, session) {
   
   output$taz_choice_map <- renderLeaflet(
     leaflet() %>% 
-      addProviderTiles(providers[[110]]) %>%
+      addTiles() %>%
       # addDrawToolbar(
       #   targetGroup = "draw",
       #   editOptions = editToolbarOptions(
@@ -716,10 +715,10 @@ server <- function(input, output, session) {
       addPolygons(data = st_transform(taz_shapefile[selected(),], crs = '+proj=longlat +datum=WGS84'), 
                   label = putting_labels(),
                   labelOptions = labelOptions( textsize = "14px"), 
-                  fillColor = "#A52A2A", weight = 2,
+                  fillColor = "#EC8F5E", weight = 2,
                   color = "white",
                   dashArray = "3",
-                  fillOpacity = 0.3,
+                  fillOpacity = 0.7,
                   highlightOptions = highlightOptions(color = "black",
                                                       weight = 2,
                                                       bringToFront = TRUE)))
@@ -758,7 +757,7 @@ server <- function(input, output, session) {
     leaflet() %>% 
       clearShapes() %>%
       clearControls() %>%
-      addProviderTiles(providers[[110]]) %>%
+      addTiles() %>%
       setView(lng = -77.43 , lat = 37.54, zoom = 13)
   })
   
@@ -808,7 +807,7 @@ server <- function(input, output, session) {
     leaflet() %>% 
       clearShapes() %>%
       clearControls() %>%
-      addProviderTiles(providers[[110]]) %>%
+      addTiles() %>%
       setView(lng = -77.43 , lat = 37.54, zoom = 13) #%>%
     # addPolygons(data = st_transform(tazs(), crs = '+proj=longlat +datum=WGS84'),weight = 3, dashArray = 6,
     #             color = "white",

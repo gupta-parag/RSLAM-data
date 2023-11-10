@@ -25,7 +25,7 @@ library(dplyr)
 #library(Matrix.utils)
 library(RColorBrewer)
 library(ggplot2)
-library(maptools)
+#library(maptools)
 library(rgdal)
 library(RColorBrewer)
 library(httpuv)
@@ -45,11 +45,11 @@ library(leaflet.extras)
 
 source('C:\\R_SLAM_2\\shiny\\functions.R')
 
-##### Read control and tazx file to run the program: for choices and display 
+##### Read control and tazx file to run the program: for choices and display #################
 
 basedir <- "C:/R_SLAM_2/BaseLU"
-taztags <- read.csv(str_c(basedir,"/Alt_A/TazTags.csv"))
-exComputed <- read.csv(str_c(basedir,"/Alt_A/excludeComputed.csv"))
+taztags <- read.csv(str_c(basedir,"/ExcludeFiles/TazTags.csv"))
+exComputed <- read.csv(str_c(basedir,"/ExcludeFiles/excludeComputed.csv"))
 setwd(basedir)
 control<-read.csv('Alt_A/input/control.csv')
 control_default <- control
@@ -75,9 +75,9 @@ labels_of_taz <-  c("Developable Acreage","Household Compatibility Score","Retai
 
 final_labels_of_taz <- stringr::str_c(labels_of_taz," (",colnames(taz)[4:length(taz)],")")
 
+######################################################################################################
 
-
-############# functions to do things 
+#################################### Functions to do things #######################################
 
 all_ids <- c("j_name", rep(c("hh", "ret", "non_ret","pop"), times = 2), 
              "model_taz", final_labels_of_taz, "area_type")
@@ -405,7 +405,7 @@ create_scen_map <- function(base_dir_input, alt_name, type=1){
 }
 
 
-###############################################
+#########################################################################################################
 
 ui <- navbarPage(theme = shinytheme("flatly"),title = "Land-Allocation Model", id = "nav", 
                  tabPanel("About", div(class = "rvalogo",img(src='TPO_Logo_road.png',height="20%", width="20%", align = "right")), 

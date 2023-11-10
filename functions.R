@@ -834,7 +834,7 @@ filter_output_f <- filter_output_f[filter_output_f$TAZ %in% included$MODEL_TAZ, 
 
 
 # getting the excluded TAZs
-excluded_output <- read.csv('C:\\R_SLAM_2\\BaseLU\\Alt_A\\input_2050_targets.csv')
+excluded_output <- read.csv(paste0(indir,'\\input_2050_targets.csv'))
 excluded_output_f <- excluded_output[excluded_output$TAZ %in% excluded$MODEL_TAZ, ]
 
 excluded_output_f <- excluded_output_f %>% 
@@ -851,7 +851,380 @@ setwd(savwd)
 return(owork)
 }
 
+# Other functions
 
+
+running_model <- function(base_dir_input, alt_name){
+  print(getwd())
+  if(base_dir_input == ""){
+    base_dir_input <- basedir
+  }
+  
+  if(alt_name == ""){
+    alt_name <- "Alt_A"
+  }
+  
+  runslam(base_dir_input,alt_name)
+  message("*** RTC Land Use Model Complete ***\n") 
+}
+
+##################################### OLD FUNCTION  ###################################
+# creating_alternative <- function(base_dir_input, alt_name ){
+#   if(base_dir_input == ""){
+#     base_dir_input <- "C:/R_SLAM_2/BaseLU"
+#   }
+#   
+#   if(alt_name == ""){
+#     base_dir_input <- "C:/R_SLAM_2/BaseLU"
+#   }else {
+#     dir.create(str_c("C:/R_SLAM_2/BaseLU/", alt_name))
+#     dir.create(str_c("C:/R_SLAM_2/BaseLU/",alt_name, "/", "Input"))
+#     dir.create(str_c("C:/R_SLAM_2/BaseLU/", alt_name,"/", "Output"))
+#   }
+#   
+#   #reading files from the parent folder
+#   parent_files_path <- list.files(paste0(base_dir_input, '/Alt_A/input'), full.names = T)
+#   child_files_path <- paste0(base_dir_input,"/" ,alt_name, "/input")
+#   file.copy(parent_files_path, child_files_path )
+#   
+# }
+
+############################################################################################
+changing_ui <- function(file_choice){
+  
+  creating_ti_taz <- function(){
+    # labels_of_taz <-  c("Developed Acreage","Household Compatibility Score","Retail Compatibility Score","Non-Retail Compatibility Score",
+    #                     "Household Accessibility Score","Employment Accessibility Score","Developable Acreage",
+    #                     "Population Index","Retail Index","Non-retail Index","Vertical value Households in acres","Vertical value Retail in acres","Vertical value Non-Retail in acres",
+    #                     "Household Vertical Index","Retail Vertical Index" ,"Non-Retail Vertical Index","Exculde from the Model")
+    # final_labels_of_taz <- stringr::str_c(labels_of_taz," (", name_columns[4:length(taz)],")")
+    
+    inputs_taz <- lapply(final_labels_of_taz, function(x){
+      textInput(inputId = x, label = x, placeholder = "Enter value to not use defaults")
+    })
+    return(inputs_taz)
+  }
+  
+  jurisdiction <- pickerInput("j_name", "Select Jurisdiction", choices = unique(control$Jname), selected = "Richmond",
+                              options = list(title = paste0( unique(control$Jname), collapse = ", ")))
+  if(file_choice == 1){
+    list(
+      jurisdiction,
+      textInput("pop_value", "Enter Total population", placeholder = "Enter value to not use defaults"),
+      textInput("hh_value", "Enter the number of Households", placeholder = "Enter value to not use defaults"),
+      textInput("ret_value", "Enter the number of Retail Jobs", placeholder = "Enter value to not use defaults"),
+      textInput("non_ret_value", "Enter the number of Non-retail Jobs", placeholder = "Enter value to not use defaults"))
+  } else if(file_choice == 2){
+    list(
+      jurisdiction,
+      pickerInput("area_type", "Select Area type", choices = c("Urban" = 1, "Semi-Urban" = 2, "Rural" = 3), 
+                  options = list(title =  paste0(c("Urban", "Semi-Urban", "Rural"), collapse = ", "))),
+      textInput("hh_den", "Enter the density of HH per acre", placeholder = "Enter value to not use defaults"),
+      textInput("ret_den", "Enter the density of jobs per Acre (Retail Employment)", placeholder = "Enter value to not use defaults"),
+      textInput("non_ret_den", "Enter the density of jobs per Acre (Non-retail Employment)", placeholder = "Enter value to not use defaults"))
+    
+  } else  if(file_choice == 3){
+    list(
+      jurisdiction,
+      pickerInput("model_taz", "Select TAZ", choices = c(), options = list(title = "1, 2, 3, 4, 5 ..."), multiple = T),
+      creating_ti_taz())
+    
+    
+  }
+}
+changing_columns <- function(name_df, col_to_change, data_to_replace, row_number, choice = 1){
+  if(choice == 1){
+    j <- 1
+    for( i in col_to_change){ #directly using the name of the column in i 
+      print(i)
+      name_df[[i]][row_number] <- as.numeric(data_to_replace[j]) 
+      #print(x[j])
+      j <- j + 1
+    }
+    return(name_df)
+  } else if(choice == 2) {
+    for( i in col_to_change){ #directly using the name of the column in i 
+      print(i)
+      name_df[[i]][row_number] <- as.numeric(data_to_replace[[i]][row_number]) 
+    }
+    return(name_df)
+  }
+}
+
+changing_input_file <- function(data_by_juris, file_choice, taz_group_input = ""){
+  
+  file_choice <- as.numeric(file_choice)
+  x <- unlist(strsplit(data_by_juris, split = ",")) # "JNAME", "POP",  "HH","RET_JOBS", "NON_RET_JOBS"
+  
+  if(file_choice == 1) {
+    
+    indices <- which(control$Jname == x[1])
+    rows_to_change <- indices[1:4]
+    jur_name <- x[1]
+    
+    if(x[2] == "" & x[5] !="" ){
+      x[2] <- round(as.numeric(x[5]) / as.numeric(control_default$Ratio[rows_to_change[1]]))
+      control[rows_to_change[4], "CNTL_TOT"] <<- as.numeric(x[5]) - as.numeric(control$CNTL_TOT[control$Jname == jur_name][5])
+    } else if( x[2] != "" & x[5] !="" ) {
+      control[rows_to_change[4], "CNTL_TOT"] <<- as.numeric(x[5]) - as.numeric(control$CNTL_TOT[control$Jname == jur_name][5])
+    }
+    
+    x <- x[-1]
+    
+    if(x[4] != ""){
+      x <- x[-4]
+      rows_to_change <- rows_to_change[1:3]
+    }
+    
+    empty_indices <- grepl(pattern = "\\S", x )  #T, F, T
+    
+    control$CNTL_TOT[ rows_to_change[empty_indices] ] <<- as.numeric(x[empty_indices])
+    control$CNTL_TOT[ rows_to_change[!empty_indices] ] <<- as.numeric(control_default$CNTL_TOT[rows_to_change[!empty_indices]])
+    return(control)
+    
+  } else if (file_choice == 3) {
+    taz_to_change <- as.numeric(taz_group_input)
+    index <- unlist(lapply(taz_to_change, function(x){
+      which(taz$MODEL_TAZ == x)
+    }))
+    empty_indices <- grepl(pattern = "\\S", x ) #### columns to change from user input using it on data by jurisdiction
+    columns_to_change <- colnames(taz)[4:length(taz)]
+    columns_to_change_from_user_input <- columns_to_change[empty_indices] #### columns to change from user input
+    columns_to_change_from_default <- columns_to_change[!empty_indices] #### columns to change from default
+    
+    taz <<- changing_columns(taz, columns_to_change_from_user_input, x[empty_indices], index)
+    taz <<- changing_columns(taz, columns_to_change_from_default, data_to_replace = taz_default,index, choice = 2)
+    return(taz)
+    as
+  } else if (file_choice == 2) {
+    x <- unlist(strsplit(data_by_juris, split = ",")) # "JNAME", "HH","RET_JOBS", "NON_RET_JOBS"
+    filtered_by_juris <- which(rate_of_consumption$JUR == x[1] & rate_of_consumption$MTP_AT == as.numeric(x[5]))
+    x <- x[ -c(1,5)]
+    empty_indices <- grepl(pattern = "\\S", x )  #T, F, T
+    columns_to_change <-     colnames(rate_of_consumption)[4:6]
+    cols_to_change_user_input <- columns_to_change[empty_indices]
+    cols_to_change_default <- columns_to_change[!empty_indices]
+    
+    rate_of_consumption <<- changing_columns(name_df = rate_of_consumption, 
+                                             col_to_change =  cols_to_change_user_input, 
+                                             data_to_replace = x[empty_indices], row_number = filtered_by_juris)
+    rate_of_consumption <<- changing_columns(rate_of_consumption, cols_to_change_default,
+                                             row_number = filtered_by_juris, choice = 2,
+                                             data_to_replace = rate_of_consumption_default)
+    return(rate_of_consumption)
+  }
+}
+
+
+
+#writing_file(input$m_file, input$base_dir, input$alt_name)
+writing_file <- function(choice, base_dir_input, alt_name){
+  if(base_dir_input == ""){
+    base_dir_input <- basedir
+  }
+  if(alt_name == ""){
+    alt_name <- ""
+  }
+  
+  if(choice == 1) {
+    return(str_c(base_dir_input,"/",alt_name,"/Input/","control.csv"))
+  } else if(choice == 2){
+    return(str_c(base_dir_input,"/",alt_name,"/Input/","densities.csv"))
+  } else if(choice == 3){
+    return(str_c(base_dir_input,"/",alt_name, "/Input/","TAZx.csv"))
+  }
+}
+reading_file <- function(choice, base_dir_input, alt_name){
+  if(base_dir_input == ""){
+    base_dir_input <- basedir
+  }
+  if(alt_name == ""){
+    alt_name <- ""
+  }
+  
+  if(choice == 1) {
+    a <- read.csv(str_c(base_dir_input,"/",alt_name,"/Input/","control.csv"))
+    return(a)
+  } else if(choice == 2){
+    b <- read.csv(str_c(base_dir_input,"/",alt_name,"/Input/","densities.csv"))
+    return(b)
+  } else if(choice == 3){
+    c <- read.csv(str_c(base_dir_input,"/",alt_name, "/Input/","TAZx.csv"))
+    return(c)
+  }
+}
+reading_output_of_alternative <- function(base_dir_input, alt_name, choice = ''){
+  if(base_dir_input == ""){
+    base_dir_input <- basedir
+  }
+  
+  if(alt_name == ""){
+    message("No Alternative name")
+  }
+  if(choice == '1') {
+    pathOfLUOutput <- str_c(base_dir_input,"/",alt_name,"/Output/RSlam_output_revisedAr_",alt_name , ".csv" )
+    message(pathOfLUOutput)
+    main_output <- read.csv(str_c(base_dir_input,"/",alt_name,"/Output/RSlam_output_revisedAr_",alt_name , ".csv" ))
+    
+  } else {
+    output_file_path <- list.files(str_c(base_dir_input,"/",alt_name,"/Output"), pattern = ".dbf$", full.names = T)
+    main_output <- read.dbf(output_file_path)
+  }
+  return(main_output)
+  
+}
+reading_output_file <- function(base_dir_input, alt_name, name_column){
+  if(base_dir_input == ""){
+    base_dir_input <- basedir
+  }
+  
+  if(alt_name == ""){
+    message("No Alternative name")
+  }
+  output_file_path <- list.files(str_c(base_dir_input,"/",alt_name,"/Output"), pattern = ".xlsx$", full.names = T) 
+  
+  output_data <- output_file_path %>%
+    excel_sheets() %>%
+    set_names() %>%
+    map(read_excel,
+        path = output_file_path)
+  
+  return(output_data[[name_column]])
+}
+reading_taz_output <- function(base_dir_input, alt_name, type = "model"){
+  if(base_dir_input == ""){
+    base_dir_input <- basedir
+  }
+  if(alt_name == ""){
+    alt_name <- "Alt_A"
+  }
+  taz_visualize <- taz_shapefile[,1]
+  #base_data <- list.files(str_c(basedir,"/",alt_name,"/Input"), pattern = ".dbf$", full.names = T)
+  if(type == "model") {
+    
+    output_file_path <- list.files(str_c(basedir,"/",alt_name,"/Output"), pattern = ".dbf$", full.names = T)
+    main_output <- read.dbf(output_file_path)
+    final_data <- left_join(taz_visualize, main_output, by = c("MODEL_TAZ" = "ZONE"))
+  } else if( type == "base") {
+    
+    base_file<- read.dbf(str_c(basedir,"/",alt_name,"/Input/RTC_LANDUSE_2017.dbf"))
+    final_data <- left_join(taz_visualize, base_file, by = c("MODEL_TAZ" = "ZONE"))
+  }  else if( type == "horizon") {
+    horizon_file <- read.dbf(str_c(basedir,"/",alt_name,"/Input/RTC_LANDUSE_2045.dbf"))
+    final_data <- left_join(taz_visualize, horizon_file, by = c("MODEL_TAZ" = "ZONE"))
+  }
+  return(final_data)
+}
+write_exclude <- function(choice, base_dir_input, alt_name){
+  
+  message(choice)
+  message(alt_name)
+  if(base_dir_input == ""){
+    base_dir_input <- basedir
+  }
+  if(alt_name == ""){
+    alt_name <- ""
+  }
+  
+  fileName <- read.csv(str_c(base_dir_input,"/",alt_name, "/Input/TAZx.csv"))
+  
+  selectionExclude <- as.data.frame(cbind(exComputed[["Model_TAZ"]], exComputed[[choice]]))
+  colnames(selectionExclude) <- c("MODEL_TAZ", "ExcludeThis")
+  x <- left_join(fileName, selectionExclude, by ="MODEL_TAZ")
+  x$EXCLUDE <- x$ExcludeThis
+  
+  write.csv(x[,1:20], 
+            str_c(base_dir_input,"/",alt_name, "/Input/","TAZx.csv"),
+            row.names = F)
+  
+  
+}
+create_scen_map <- function(base_dir_input, alt_name, type=1){
+  
+  if(base_dir_input == ""){
+    base_dir_input <- basedir
+  }
+  if(alt_name == ""){
+    alt_name <- "Alt_A"
+  }
+  
+  message(base_dir_input)
+  message(alt_name)
+  taz_sf <- st_read(str_c(basedir,"/",alt_name, "/Output"),
+                    layer = "tazx")
+  exclude_tazs <- read.csv(str_c(basedir,"/",alt_name,
+                                 "/Output/Exclude.csv"))
+  tdm_file <- read.dbf(str_c(basedir,"/",alt_name,
+                             "/Output/RSlam_output_",alt_name,".dbf"))
+  
+  base_file <- read.dbf(str_c(basedir,"/",alt_name,
+                              "/Input/RTC_LANDUSE_2045.dbf"))
+  
+  x <- tdm_file[!(tdm_file$N %in% exclude_tazs$MODEL_TAZ),] # taking out TAZs that are in excluded csv
+  x_f <- x[x$N %in% taz_sf$MODEL_TAZ,]
+  
+  y_baseline <- left_join(x_f[,c("N","JUR","TOT_POP","HH","TOT_EMP")], 
+                          base_file[,c("N","TOT_POP","HH","TOT_EMP")], 
+                          by = "N")
+  
+  y_baseline$POP_Delta <- y_baseline$TOT_POP.x - y_baseline$TOT_POP.y
+  y_baseline$HH_Delta <- y_baseline$HH.x - y_baseline$HH.y
+  y_baseline$EMP_Delta <- y_baseline$TOT_EMP.x - y_baseline$TOT_EMP.y
+  
+  
+  z <- left_join(taz_sf[taz_sf$MODEL_TAZ %in% y_baseline$N,1], 
+                 y_baseline, by = c("MODEL_TAZ" = "N") )
+  return(z)
+  
+}
+
+createParentScenario <- function(choice = FALSE){
+  if(choice) {
+    return(textInput("parentScenrio", 
+                     label = "Type the Name of the Parent Scenario", 
+                     placeholder = 'Alt_Name'))
+  }
+}
+creating_alternative <- function(base_dir_input, alt_name, choice='', parent_path='' ){
+  if(base_dir_input == ""){
+    base_dir_input <- "C:/R_SLAM_2/BaseLU"
+  }
+  
+  if(alt_name == ""){
+    base_dir_input <- "C:/R_SLAM_2/BaseLU"
+  }
+  
+  # Create directory files 
+  dir.create(str_c("C:/R_SLAM_2/BaseLU/", alt_name))
+  dir.create(str_c("C:/R_SLAM_2/BaseLU/",alt_name, "/", "Input"))
+  dir.create(str_c("C:/R_SLAM_2/BaseLU/", alt_name,"/", "Output"))
+  
+  if(choice){
+    message('I am copying files from Parent Scenario')
+    parent_files_path <- list.files(paste0(base_dir_input, '/', parent_path,'/Input'), full.names = T)
+    child_files_path <- paste0(base_dir_input,"/" ,alt_name, "/Input")
+    file.copy(parent_files_path, child_files_path)
+    
+    landUseOutput <- read.csv(paste0(base_dir_input, '/', parent_path,
+                                     '/Output/RSlam_output_revisedAr_',parent_path,'.csv'))
+    tdmOutput <- read.dbf(paste0(base_dir_input, '/', parent_path,
+                                 '/Output/RSlam_output_',parent_path,'.dbf'))
+    write.csv(landUseOutput, row.names = F, file = paste0(base_dir_input, '/', alt_name,
+                                                          '/Input/input_2050.csv'))
+    write.dbf(tdmOutput, , file = paste0(base_dir_input, '/', alt_name,
+                                         '/Input/RTC_LANDUSE_2045.dbf'))
+    
+    
+  } else {
+    parent_files_path <- list.files(paste0(base_dir_input, '/Alt_A/input'), full.names = T)
+    child_files_path <- paste0(base_dir_input,"/" ,alt_name, "/input")
+    file.copy(parent_files_path, child_files_path )
+  }
+  
+  #reading files from the parent folder
+  
+  
+}
 
 
 
